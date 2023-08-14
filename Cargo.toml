@@ -1,0 +1,12 @@
+[package]
+name = "shdoku"
+description = "a basic tui-sudoku game"
+version = "0.1.0"
+edition = "2021"
+authors = ["markichnich"]
+license = "GPL-3.0-or-later"
+keywords = ["sudoku", "tui", "game", "crossterm"]
+categories = ["games", "mathematics", "science", "algorithms"]
+
+[dependencies]
+crossterm = "0.27.0"
