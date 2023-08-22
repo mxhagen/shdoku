@@ -47,6 +47,7 @@ This is what the sudoku will be displayed like.
       - [x] Difficulties to choose
     - [ ] Timer
       - [ ] Scoreboard per difficulty
+    - [ ] Undo functionality
   
   
   - [x] Basic UI
