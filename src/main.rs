@@ -16,7 +16,7 @@ use std::{io, time::Duration};
 
 fn main() -> io::Result<()> {
     let mut screen = Screen::init(io::stdout());
-    let mut state = State::init(Difficulty::Medium);
+    let mut state = State::init(Difficulty::Mid);
 
     loop {
         if poll(Duration::from_millis(250))? {
@@ -26,36 +26,69 @@ fn main() -> io::Result<()> {
                     Char('j') => state.move_cursor(Dir::Down),
                     Char('k') => state.move_cursor(Dir::Up),
                     Char('l') => state.move_cursor(Dir::Right),
+
                     Char('H') => state.move_cursor(Dir::FarLeft),
                     Char('J') => state.move_cursor(Dir::FarDown),
                     Char('K') => state.move_cursor(Dir::FarUp),
                     Char('L') => state.move_cursor(Dir::FarRight),
+
+                    Char('i') => state.enter_mode(Mode::Edit),
+                    Char('I') => state.enter_mode_once(Mode::Edit),
+
+                    Char('a') => state.enter_mode(Mode::Markup),
+                    Char('A') => state.enter_mode_once(Mode::Markup),
+
+                    Char('g') | Char('G') => state.enter_mode_once(Mode::Go),
+
+                    Char(' ') => match state.mode {
+                        Mode::Markup => {
+                            state.toggle_current_mark();
+                            state.enter_next_mode();
+                        }
+                        Mode::Edit => {
+                            state.toggle_current_cell();
+                            state.enter_next_mode();
+                            if is_solution(&state.board) {
+                                screen.deinit()?;
+                                println!("you win");
+                                break;
+                            }
+                        }
+                        _ => {}
+                    },
+
                     Char('x') => {
-                        if state.current_cell_modifiable() {
-                            *state.current_cell() = 0;
+                        if state.current_cell_is_modifiable() {
+                            match state.mode {
+                                Mode::Go => {}
+                                Mode::Edit => state.delete_current_cell(),
+                                Mode::Markup => state.delete_current_mark(),
+                            }
                         }
                     }
-                    Char(num) if ('1'..='9').contains(&num) => {
-                        if state.current_cell_modifiable() {
-                            *state.current_cell() = num as u8 - b'0';
+
+                    Char(num) if ('1'..='9').contains(&num) => match state.mode {
+                        Mode::Go => {
+                            let idx = (num as u8 - b'1') as usize;
+                            state.move_cursor_to(1 + idx / 3 * 3, 1 + idx % 3 * 3);
+                            state.enter_next_mode();
                         }
-                        if is_solution(&state.board) {
-                            screen.deinit()?;
-                            println!("you win");
-                            break;
-                        }
-                    }
-                    Char('q') => {
+                        _ => state.preselect_num(num as u8 - b'0'),
+                    },
+
+                    Char('q') | Char('Q') => {
                         screen.deinit()?;
                         break;
                     }
+
+                    Esc => state.enter_mode(Mode::Edit),
                     _ => {}
                 }
             }
         }
 
         screen.update_dimensions()?;
-        screen.render(state.board);
+        screen.render(&state);
         screen.draw(state.cur_row, state.cur_col)?;
     }
 

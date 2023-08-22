@@ -1,3 +1,4 @@
+use crate::state::*;
 use std::io;
 
 use crossterm::{
@@ -70,15 +71,13 @@ where
         Ok(())
     }
 
-    pub fn render(&mut self, board: [[u8; 9]; 9]) {
+    pub fn render(&mut self, state: &State) {
         let mut lines = Vec::new();
-        lines.push("┌────────┬────────┬────────┐".to_string().chars().collect());
+        lines.push("┌────────┬────────┬────────┐".to_string());
 
-        for (row, row_slice) in board.iter().enumerate() {
+        for (row, row_slice) in state.board.iter().enumerate() {
             match row {
-                3 | 6 => {
-                    lines.push("├────────┼────────┼────────┤".to_string().chars().collect());
-                }
+                3 | 6 => lines.push("├────────┼────────┼────────┤".to_string()),
                 _ => {}
             }
             let mut line = String::new();
@@ -97,7 +96,7 @@ where
             line.push_str(" │");
             lines.push(line);
         }
-        lines.push("└────────┴────────┴────────┘".to_string().chars().collect());
+        lines.push("└────────┴────────┴────────┘".to_string());
 
         let pad_hori = self.width / 2 + lines[0].chars().count() / 2;
         let pad_vert = self.height - lines.len();

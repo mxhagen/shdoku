@@ -5,14 +5,16 @@ use crate::generator::Difficulty::*;
 use crate::rand::{seq::SliceRandom, thread_rng};
 use crate::sudoku::{Board, New};
 
+use std::fmt;
+
 /// categories of difficulty, indicating how many
 /// empty spaces will be on a sudoku board.
 #[allow(unused)]
 pub enum Difficulty {
     Easy,
-    Medium,
+    Mid,
     Hard,
-    Extreme,
+    Expert,
     Custom(usize),
 }
 
@@ -22,10 +24,22 @@ impl Difficulty {
     pub fn removal_count(&self) -> usize {
         match self {
             Easy => 35,
-            Medium => 45,
+            Mid => 45,
             Hard => 52,
-            Extreme => 62,
+            Expert => 62,
             Custom(x) => *x,
+        }
+    }
+}
+
+impl fmt::Display for Difficulty {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Easy => write!(f, "Easy"),
+            Mid => write!(f, " Mid"),
+            Hard => write!(f, "Hard"),
+            Expert => write!(f, "Exprt"),
+            Custom(x) => write!(f, "C({})", x),
         }
     }
 }
