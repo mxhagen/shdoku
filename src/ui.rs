@@ -2,7 +2,7 @@ use crate::state::*;
 use std::io;
 
 use crossterm::{
-    cursor::{MoveTo, SetCursorStyle},
+    cursor::{MoveTo, MoveToColumn, SetCursorStyle},
     execute, queue,
     terminal::{
         disable_raw_mode, enable_raw_mode, size, Clear, ClearType::All, EnterAlternateScreen,
@@ -14,7 +14,7 @@ pub struct Screen<T>
 where
     T: io::Write,
 {
-    pub data: Vec<String>,
+    pub data: Vec<Vec<char>>,
     pub ostream: T,
     pub width: usize,
     pub height: usize,
@@ -26,12 +26,15 @@ where
 {
     pub fn init(ostream: T) -> Self {
         let (width, height) = size().unwrap();
+        let (width, height) = (width as usize, height as usize);
+
+        let data = RENDER_TEMPLATE.iter().map(|s| s.to_vec()).collect();
 
         let mut screen = Screen {
-            data: vec![String::with_capacity(width as usize); height as usize],
+            data,
             ostream,
-            width: width as usize,
-            height: height as usize,
+            width,
+            height,
         };
 
         enable_raw_mode().expect("[-]: Error: ui::init: Failed to enable raw mode.");
@@ -40,86 +43,126 @@ where
         screen
     }
 
-    pub fn deinit(&mut self) -> io::Result<()> {
-        disable_raw_mode()?;
-        execute!(self.ostream, LeaveAlternateScreen)?;
-        Ok(())
+    pub fn deinit(&mut self) {
+        disable_raw_mode().unwrap_or(());
+        execute!(self.ostream, LeaveAlternateScreen).unwrap_or(());
     }
 
     pub fn update_dimensions(&mut self) -> io::Result<()> {
         let (width, height) = size()?;
         self.width = width as usize;
         self.height = height as usize;
+
+        if height < 14 || width < 54 {
+            self.clear()?;
+            self.deinit();
+            eprintln!("[-]: Error: ui::update_dimensions: Terminal size too small to display UI.");
+            return Err(io::Error::from(io::ErrorKind::Other));
+        }
+
         Ok(())
     }
 
     pub fn clear(&mut self) -> io::Result<()> {
-        queue!(self.ostream, Clear(All))
+        queue!(self.ostream, Clear(All))?;
+        queue!(self.ostream, MoveToColumn(0))
     }
 
     pub fn draw(&mut self, row: usize, col: usize) -> io::Result<()> {
         self.draw_screen()?;
-        self.place_cursor(row, col)?;
+        self.draw_cursor(row, col)?;
         self.ostream.flush()?;
         Ok(())
     }
 
     pub fn draw_screen(&mut self) -> io::Result<()> {
         self.clear()?;
-        let s: String = self.data.join("\r\n");
-        write!(self.ostream, "{}", s)?;
+        let lft_pad = self.width / 2 - 14;
+        let bot_pad = self.height / 2 - 7;
+
+        let mut display = String::with_capacity((43 + lft_pad) * 13 + bot_pad * 2);
+
+        display.extend(self.data.iter().flat_map(|line| {
+            std::iter::repeat(' ')
+                .take(lft_pad)
+                .chain(line.to_owned())
+                .chain(['\r', '\n'])
+        }));
+
+        display.push_str(&"\r\n".repeat(bot_pad));
+
+        write!(self.ostream, "{}", display)?;
         Ok(())
     }
 
     pub fn render(&mut self, state: &State) {
-        let mut lines = Vec::new();
-        lines.push("┌────────┬────────┬────────┐".to_string());
-
-        for (row, row_slice) in state.board.iter().enumerate() {
-            match row {
-                3 | 6 => lines.push("├────────┼────────┼────────┤".to_string()),
-                _ => {}
-            }
-            let mut line = String::new();
-            for (col, cur_cell) in row_slice.iter().enumerate() {
-                match col {
-                    0 => line.push_str("│ "),
-                    3 | 6 => line.push_str(" │ "),
-                    _ => {}
-                }
-                line.push(match cur_cell {
-                    0 => ' ',
-                    n => (b'0' + n) as char,
-                });
-                line.push(' ');
-            }
-            line.push_str(" │");
-            lines.push(line);
-        }
-        lines.push("└────────┴────────┴────────┘".to_string());
-
-        let pad_hori = self.width / 2 + lines[0].chars().count() / 2;
-        let pad_vert = self.height - lines.len();
-        let pad_top = pad_vert / 2;
-        let pad_bot = pad_vert - pad_top;
-
-        let mut new_data = Vec::new();
-
-        for _ in 0..pad_top {
-            new_data.push(String::new());
-        }
-        for line in lines {
-            let padded = format!("{: >width$}", line, width = pad_hori);
-            new_data.push(padded);
-        }
-        for _ in 0..pad_bot {
-            new_data.push(String::new());
-        }
-
-        self.data = new_data;
+        self.render_board();
+        self.render_board_cells(state);
+        self.render_scoreboard_elements(state);
     }
 
-    pub fn place_cursor(&mut self, row: usize, col: usize) -> io::Result<()> {
+    fn render_board(&mut self) {
+        self.data = RENDER_TEMPLATE.iter().map(|s| s.to_vec()).collect();
+    }
+
+    fn render_board_cells(&mut self, state: &State) {
+        for row in 0..9 {
+            for col in 0..9 {
+                let i = row + 1 + row / 3;
+                let j = col + 2 + col + col / 3 * 3;
+
+                self.data[i][j] = match state.board[row][col] {
+                    0 => ' ',
+                    x => (x + b'0') as char,
+                }
+            }
+        }
+    }
+
+    fn render_scoreboard_elements(&mut self, state: &State) {
+        // char indeces of scoreboard elements
+        // -----
+        //
+        // difficulty [1][34] - [1][38]
+        // completion [2][34] - [1][35]
+        //
+        // timer [4][34] - [3][38]
+        //
+        // > edit:   [6][33]
+        // > markup: [7][33]
+        // > go:     [8][33]
+        //
+        // preselection: [10][36]
+        // preselection completion: [11][34]
+
+        for (i, c) in (34..39).zip(state.get_difficulty_chars()) {
+            self.data[1][i] = c;
+        }
+
+        for (i, c) in (34..36).zip(state.get_completion_chars()) {
+            self.data[2][i] = c;
+        }
+
+        for (i, c) in (34..39).zip(state.get_timer_chars()) {
+            self.data[4][i] = c;
+        }
+
+        for i in 6..9 {
+            self.data[i][33] = ' ';
+        }
+
+        self.data[match state.mode {
+            Mode::Edit => 6,
+            Mode::Markup => 7,
+            Mode::Go => 8,
+        }][33] = '>';
+
+        self.data[10][36] = (state.preselection + b'0') as char;
+
+        self.data[11][34] = state.get_preselection_completion_char();
+    }
+
+    pub fn draw_cursor(&mut self, row: usize, col: usize) -> io::Result<()> {
         let (x, y) = (
             (self.width / 2 - 14) as u16,
             (self.height / 2 - 7 + (self.height & 1)) as u16,
@@ -139,3 +182,71 @@ where
         queue!(self.ostream, MoveTo(x, y), SetCursorStyle::SteadyBlock)
     }
 }
+
+const RENDER_TEMPLATE: [[char; 41]; 13] = [
+    [
+        '┌', '─', '─', '─', '─', '─', '─', '─', '─', '┬', '─', '─', '─', '─', '─', '─', '─', '─',
+        '┬', '─', '─', '─', '─', '─', '─', '─', '─', '┐', ' ', ' ', ' ', ' ', '┌', '─', '─', '─',
+        '─', '─', '─', '─', '┐',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ',
+        ' ', ' ', ' ', ' ', '│',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ',
+        '/', '8', '1', ' ', '│',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '├', '─', '─', '─',
+        '─', '─', '─', '─', '┤',
+    ],
+    [
+        '├', '─', '─', '─', '─', '─', '─', '─', '─', '┼', '─', '─', '─', '─', '─', '─', '─', '─',
+        '┼', '─', '─', '─', '─', '─', '─', '─', '─', '┤', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ',
+        ' ', ' ', ' ', ' ', '│',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '├', '─', '─', '─',
+        '─', '─', '─', '─', '┤',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '│', ' ', ' ', 'E',
+        'd', 'i', 't', ' ', '│',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '│', ' ', ' ', 'M',
+        'a', 'r', 'k', ' ', '│',
+    ],
+    [
+        '├', '─', '─', '─', '─', '─', '─', '─', '─', '┼', '─', '─', '─', '─', '─', '─', '─', '─',
+        '┼', '─', '─', '─', '─', '─', '─', '─', '─', '┤', ' ', ' ', ' ', ' ', '│', ' ', ' ', 'G',
+        'o', ' ', ' ', ' ', '│',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '├', '─', '─', '─',
+        '─', '─', '─', '─', '┤',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '│', ' ', ' ', '[',
+        ' ', ']', ' ', ' ', '│',
+    ],
+    [
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        '│', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ', ' ', '│', ' ', ' ', ' ',
+        '/', ' ', '9', ' ', '│',
+    ],
+    [
+        '└', '─', '─', '─', '─', '─', '─', '─', '─', '┴', '─', '─', '─', '─', '─', '─', '─', '─',
+        '┴', '─', '─', '─', '─', '─', '─', '─', '─', '┘', ' ', ' ', ' ', ' ', '└', '─', '─', '─',
+        '─', '─', '─', '─', '┘',
+    ],
+];

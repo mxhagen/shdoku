@@ -1,6 +1,8 @@
 use crate::sudoku::*;
 use crate::Dir::*;
 
+use std::time;
+
 pub enum Dir {
     Up,
     Down,
@@ -22,11 +24,13 @@ pub enum Mode {
 
 pub struct State {
     pub board: Board,
+    pub difficulty: Difficulty,
     pub modifiable: [[bool; 9]; 9],
     pub markups: [[[bool; 9]; 9]; 9],
+    pub start_time: time::Instant,
     pub mode: Mode,
     pub next_mode: Mode,
-    pub cur_num: u8,
+    pub preselection: u8,
     pub cur_row: usize,
     pub cur_col: usize,
 }
@@ -38,14 +42,20 @@ impl State {
 
         Self {
             board,
+            difficulty,
             modifiable,
             markups: [[[false; 9]; 9]; 9],
+            start_time: time::Instant::now(),
             mode: Mode::default(),
             next_mode: Mode::default(),
-            cur_num: 1,
+            preselection: 1,
             cur_row: 4,
             cur_col: 4,
         }
+    }
+
+    fn get_time(&self) -> time::Duration {
+        time::Instant::now() - self.start_time
     }
 
     fn get_modifiables(board: Board) -> [[bool; 9]; 9] {
@@ -87,15 +97,15 @@ impl State {
     }
 
     pub fn preselect_num(&mut self, num: u8) {
-        self.cur_num = num;
+        self.preselection = num;
     }
 
     pub fn toggle_current_cell(&mut self) {
         if self.current_cell_is_modifiable() {
-            *self.current_cell() = if *self.current_cell() == self.cur_num {
+            *self.current_cell() = if *self.current_cell() == self.preselection {
                 0
             } else {
-                self.cur_num
+                self.preselection
             }
         }
     }
@@ -139,10 +149,67 @@ impl State {
     }
 
     pub fn toggle_current_mark(&mut self) {
-        self.markups[self.cur_row][self.cur_col][self.cur_num as usize] ^= true;
+        self.markups[self.cur_row][self.cur_col][self.preselection as usize] ^= true;
     }
 
     pub fn delete_current_mark(&mut self) {
-        self.markups[self.cur_row][self.cur_col][self.cur_num as usize] = false;
+        self.markups[self.cur_row][self.cur_col][self.preselection as usize] = false;
+    }
+
+    pub fn get_completion_chars(&self) -> [char; 2] {
+        let mut count = 0;
+        for row in self.board {
+            for cell in row {
+                if cell != 0 {
+                    count += 1;
+                }
+            }
+        }
+        let to_char = |x| (x + b'0') as char;
+        [to_char(count / 10), to_char(count % 10)]
+    }
+
+    pub fn get_preselection_completion_char(&self) -> char {
+        let count = self
+            .board
+            .into_iter()
+            .flatten()
+            .filter(|&cell| cell == self.preselection)
+            .count();
+        (count.min(9) as u8 + b'0') as char
+    }
+
+    pub fn get_difficulty_chars(&self) -> [char; 5] {
+        match self.difficulty {
+            Difficulty::Easy => [' ', 'E', 'a', 's', 'y'],
+            Difficulty::Mid => [' ', 'M', 'i', 'd', ' '],
+            Difficulty::Hard => [' ', 'H', 'a', 'r', 'd'],
+            Difficulty::Expert => ['E', 'x', 'p', 'r', 't'],
+            Difficulty::Custom(x) => [
+                'C',
+                '(',
+                (x as u8 / 10 + b'0') as char,
+                (x as u8 % 10 + b'0') as char,
+                ')',
+            ],
+        }
+    }
+
+    pub fn get_timer_chars(&self) -> [char; 5] {
+        let mut secs = self.get_time().as_secs();
+        let mut chars = [':'; 5];
+        let to_char = |x: u64| (x as u8 + b'0') as char;
+        chars[0] = to_char(secs / 600);
+        secs %= 600;
+        chars[1] = to_char(secs / 60);
+        secs %= 60;
+        chars[3] = to_char(secs / 10);
+        secs %= 10;
+        chars[4] = to_char(secs);
+        chars
+    }
+
+    pub fn get_timer_string(&self) -> String {
+        self.get_timer_chars().iter().collect()
     }
 }

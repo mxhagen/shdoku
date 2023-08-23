@@ -11,3 +11,9 @@ categories = ["games", "mathematics", "science", "algorithms"]
 [dependencies]
 crossterm = "0.27.0"
 rand = "0.8.5"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true

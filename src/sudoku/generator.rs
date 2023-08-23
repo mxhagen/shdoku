@@ -10,7 +10,9 @@ use std::fmt;
 /// categories of difficulty, indicating how many
 /// empty spaces will be on a sudoku board.
 #[allow(unused)]
+#[derive(Default, Copy, Clone, PartialEq)]
 pub enum Difficulty {
+    #[default]
     Easy,
     Mid,
     Hard,
@@ -36,10 +38,10 @@ impl fmt::Display for Difficulty {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Easy => write!(f, "Easy"),
-            Mid => write!(f, " Mid"),
+            Mid => write!(f, "Mid"),
             Hard => write!(f, "Hard"),
-            Expert => write!(f, "Exprt"),
-            Custom(x) => write!(f, "C({})", x),
+            Expert => write!(f, "Expert"),
+            Custom(x) => write!(f, "Custom ({:02})", x),
         }
     }
 }

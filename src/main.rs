@@ -14,12 +14,12 @@ use ui::*;
 
 use std::{io, time::Duration};
 
-fn main() -> io::Result<()> {
+fn main() {
     let mut screen = Screen::init(io::stdout());
     let mut state = State::init(Difficulty::Mid);
 
     loop {
-        if poll(Duration::from_millis(250))? {
+        if poll(Duration::from_millis(250)).unwrap_or(false) {
             if let Ok(Key(k)) = read() {
                 match k.code {
                     Char('h') => state.move_cursor(Dir::Left),
@@ -49,8 +49,12 @@ fn main() -> io::Result<()> {
                             state.toggle_current_cell();
                             state.enter_next_mode();
                             if is_solution(&state.board) {
-                                screen.deinit()?;
-                                println!("you win");
+                                screen.deinit();
+                                println!("+------------+");
+                                println!("| You Win :) |");
+                                println!("+------------+");
+                                println!("Difficulty: {}", state.difficulty);
+                                println!("Final Time: {}", state.get_timer_string());
                                 break;
                             }
                         }
@@ -77,7 +81,7 @@ fn main() -> io::Result<()> {
                     },
 
                     Char('q') | Char('Q') => {
-                        screen.deinit()?;
+                        screen.deinit();
                         break;
                     }
 
@@ -87,12 +91,14 @@ fn main() -> io::Result<()> {
             }
         }
 
-        screen.update_dimensions()?;
-        screen.render(&state);
-        screen.draw(state.cur_row, state.cur_col)?;
-    }
+        screen.update_dimensions()
+            .unwrap_or_else(|_| std::process::exit(1));
 
-    Ok(())
+        screen.render(&state);
+
+        screen.draw(state.cur_row, state.cur_col)
+            .unwrap_or_else(|_| std::process::exit(1));
+    }
 }
 
 mod tests;
