@@ -51,7 +51,7 @@ The current control scheme adheres to vim-like keybindings and is modal.
 
 ### Todo
 
-  - [ ] Game logic
+  - [x] Game logic
     - [x] Validate Sudokus
     - [x] Generate Sudokus
       - [x] Difficulties to choose
@@ -69,7 +69,7 @@ The current control scheme adheres to vim-like keybindings and is modal.
         - [x] Preselect numbers
         - [x] Edit Mode to (re)place numbers
         - [x] Markup Mode to mark where numbers could go
-          - [ ] Autoremove marks after placing number in edit mode
+          - [x] Autoremove marks after placing number in edit mode
         - [x] Go Mode to move to blocks 1-9
         - [x] Toggle Number/Mark with Space
         - [ ] Undo/Redo stack

@@ -102,10 +102,11 @@ impl State {
 
     pub fn toggle_current_cell(&mut self) {
         if self.current_cell_is_modifiable() {
-            *self.current_cell() = if *self.current_cell() == self.preselection {
-                0
+            if *self.current_cell() == self.preselection {
+                *self.current_cell() = 0;
             } else {
-                self.preselection
+                *self.current_cell() = self.preselection;
+                self.delete_colliding_marks(self.preselection, self.cur_row, self.cur_col);
             }
         }
     }
@@ -113,6 +114,14 @@ impl State {
     pub fn delete_current_cell(&mut self) {
         if self.current_cell_is_modifiable() {
             *self.current_cell() = 0;
+        }
+    }
+
+    pub fn delete_colliding_marks(&mut self, num: u8, row: usize, col: usize) {
+        for i in 0..9 {
+            self.markups[i][col][num as usize - 1] = false;
+            self.markups[row][i][num as usize - 1] = false;
+            self.markups[row / 3 * 3 + i / 3][col / 3 * 3 + i % 3][num as usize - 1] = false;
         }
     }
 
