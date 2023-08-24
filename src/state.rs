@@ -142,7 +142,7 @@ impl State {
     pub fn move_cursor_to(&mut self, row: usize, col: usize) {
         assert!(
             row < 9 && col < 9,
-            "[-] Error: State::go_to: Can't move to row/column out of bounds."
+            "[!] Error: State::go_to: Can't move to row/column out of bounds."
         );
         self.cur_row = row;
         self.cur_col = col;

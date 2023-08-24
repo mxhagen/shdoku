@@ -37,9 +37,9 @@ where
             height,
         };
 
-        enable_raw_mode().expect("[-]: Error: ui::init: Failed to enable raw mode.");
+        enable_raw_mode().expect("[!]: Error: ui::init: Failed to enable raw mode.");
         queue!(screen.ostream, EnterAlternateScreen)
-            .expect("[-]: Error: ui::init: Failed to enter alternate screen.");
+            .expect("[!]: Error: ui::init: Failed to enter alternate screen.");
         screen
     }
 
@@ -56,7 +56,7 @@ where
         if height < 14 || width < 54 {
             self.clear()?;
             self.deinit();
-            eprintln!("[-]: Error: ui::update_dimensions: Terminal size too small to display UI.");
+            eprintln!("[!]: Error: ui::update_dimensions: Terminal size too small to display UI.");
             return Err(io::Error::from(io::ErrorKind::Other));
         }
 
