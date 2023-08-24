@@ -149,14 +149,14 @@ impl State {
     }
 
     pub fn toggle_current_mark(&mut self) {
-        self.markups[self.cur_row][self.cur_col][self.preselection as usize] ^= true;
+        self.markups[self.cur_row][self.cur_col][self.preselection as usize - 1] ^= true;
     }
 
     pub fn delete_current_mark(&mut self) {
-        self.markups[self.cur_row][self.cur_col][self.preselection as usize] = false;
+        self.markups[self.cur_row][self.cur_col][self.preselection as usize - 1] = false;
     }
 
-    pub fn get_completion_chars(&self) -> [char; 2] {
+    pub fn get_completion_string(&self) -> String {
         let mut count = 0;
         for row in self.board {
             for cell in row {
@@ -166,7 +166,7 @@ impl State {
             }
         }
         let to_char = |x| (x + b'0') as char;
-        [to_char(count / 10), to_char(count % 10)]
+        [to_char(count / 10), to_char(count % 10)].iter().collect()
     }
 
     pub fn get_preselection_completion_char(&self) -> char {
@@ -179,37 +179,42 @@ impl State {
         (count.min(9) as u8 + b'0') as char
     }
 
-    pub fn get_difficulty_chars(&self) -> [char; 5] {
+    pub fn get_difficulty_string(&self) -> String {
         match self.difficulty {
-            Difficulty::Easy => [' ', 'E', 'a', 's', 'y'],
-            Difficulty::Mid => [' ', 'M', 'i', 'd', ' '],
-            Difficulty::Hard => [' ', 'H', 'a', 'r', 'd'],
-            Difficulty::Expert => ['E', 'x', 'p', 'r', 't'],
-            Difficulty::Custom(x) => [
-                'C',
-                '(',
-                (x as u8 / 10 + b'0') as char,
-                (x as u8 % 10 + b'0') as char,
-                ')',
-            ],
+            Difficulty::Easy => String::from("Easy "),
+            Difficulty::Mid => String::from(" Mid "),
+            Difficulty::Hard => String::from("Hard "),
+            Difficulty::Expert => String::from("Exprt"),
+            Difficulty::Custom(x) => format!("C({:02})", x),
         }
     }
 
-    pub fn get_timer_chars(&self) -> [char; 5] {
-        let mut secs = self.get_time().as_secs();
-        let mut chars = [':'; 5];
+    pub fn get_timer_strings(&self) -> (String, String) {
+        let mut n = self.get_time().as_secs();
+
+        let mut mins = String::with_capacity(2);
+        let mut secs = String::with_capacity(2);
+
         let to_char = |x: u64| (x as u8 + b'0') as char;
-        chars[0] = to_char(secs / 600);
-        secs %= 600;
-        chars[1] = to_char(secs / 60);
-        secs %= 60;
-        chars[3] = to_char(secs / 10);
-        secs %= 10;
-        chars[4] = to_char(secs);
-        chars
+
+        mins.push(to_char(n / 600));
+        n %= 600;
+        mins.push(to_char(n / 60));
+        n %= 60;
+
+        secs.push(to_char(n / 10));
+        n %= 10;
+        secs.push(to_char(n));
+
+        (mins, secs)
     }
 
     pub fn get_timer_string(&self) -> String {
-        self.get_timer_chars().iter().collect()
+        let (mins, secs) = self.get_timer_strings();
+        let mut timer = String::with_capacity(5);
+        timer.push_str(&mins);
+        timer.push(':');
+        timer.push_str(&secs);
+        timer
     }
 }

@@ -25,10 +25,10 @@ impl Difficulty {
     /// sudoku board of the given `Difficulty`
     pub fn removal_count(&self) -> usize {
         match self {
-            Easy => 35,
-            Mid => 45,
-            Hard => 52,
-            Expert => 62,
+            Easy => 31,
+            Mid => 39,
+            Hard => 49,
+            Expert => 61,
             Custom(x) => *x,
         }
     }

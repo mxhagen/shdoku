@@ -16,7 +16,8 @@ use std::{io, time::Duration};
 
 fn main() {
     let mut screen = Screen::init(io::stdout());
-    let mut state = State::init(Difficulty::Mid);
+    let mut state = State::init(Difficulty::Expert);
+    screen.draw_board().or_crash();
 
     loop {
         if poll(Duration::from_millis(250)).unwrap_or(false) {
@@ -49,7 +50,7 @@ fn main() {
                             state.toggle_current_cell();
                             state.enter_next_mode();
                             if is_solution(&state.board) {
-                                screen.deinit();
+                                screen.deinit().or_crash();
                                 println!("+------------+");
                                 println!("| You Win :) |");
                                 println!("+------------+");
@@ -81,7 +82,7 @@ fn main() {
                     },
 
                     Char('q') | Char('Q') => {
-                        screen.deinit();
+                        screen.deinit().or_crash();
                         break;
                     }
 
@@ -91,13 +92,7 @@ fn main() {
             }
         }
 
-        screen.update_dimensions()
-            .unwrap_or_else(|_| std::process::exit(1));
-
-        screen.render(&state);
-
-        screen.draw(state.cur_row, state.cur_col)
-            .unwrap_or_else(|_| std::process::exit(1));
+        screen.draw(&state).or_crash();
     }
 }
 
