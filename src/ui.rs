@@ -221,7 +221,7 @@ where
         let (row, col) = (state.cur_row, state.cur_col);
         let (x, y) = (
             (self.width / 2 - 14) as u16,
-            (self.height / 2 - 7 + (self.height & 1)) as u16,
+            (self.height / 2 - 6) as u16,
         );
         let (x, y) = (x + 2, y + 1);
         let (x, y) = (x + 2 * col as u16, y + row as u16);
