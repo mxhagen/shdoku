@@ -11,7 +11,7 @@ use {state::*, sudoku::*, ui::*};
 use std::{io, time::Duration};
 
 fn main() {
-    let mut screen = Screen::init(io::stdout());
+    let mut screen = Ui::init(io::stdout());
     let mut state = State::init(Difficulty::Mid);
     screen.draw_board().or_crash();
 
