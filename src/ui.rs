@@ -52,13 +52,8 @@ where
             height,
         };
 
-        queue!(
-            ui.ostream,
-            SavePosition,
-            EnterAlternateScreen,
-            Clear(All)
-        )
-        .expect("[-]: Error: ui::init: Failed to enter alternate screen.");
+        queue!(ui.ostream, SavePosition, EnterAlternateScreen, Clear(All))
+            .expect("[-]: Error: ui::init: Failed to enter alternate screen.");
         enable_raw_mode().expect("[-]: Error: ui::init: Failed to enable raw mode.");
         ui
     }
@@ -305,7 +300,7 @@ where
 
     /// `queue!(...)`s the movement of the cursor to the top-left
     /// of the inner ui.
-    /// this simplifies handling the padding in other drawing functions 
+    /// this simplifies handling the padding in other drawing functions
     /// since the padding depends on the screen dimensions.
     fn init_cursor_offset(&mut self) -> io::Result<()> {
         let lft_pad = (self.width / 2 - 14) as u16;
