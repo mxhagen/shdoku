@@ -87,7 +87,7 @@ where
 
         if old_dimensions != (self.width, self.height) {
             self.clear()?;
-            self.draw_board()?;
+            self.draw_static_elements()?;
         }
 
         Ok(())
@@ -105,8 +105,8 @@ where
     /// changes to `self.ostream`.
     ///
     /// NOTE: this function does not draw the static elements of the ui
-    ///       using `Ui::draw_board()`. for efficiency these are only
-    ///       redrawn on screen dimensions changes.
+    ///       using `Ui::draw_static_elements()`. for efficiency these are only
+    ///       redrawn on screen dimensions changes and initialization.
     pub fn draw(&mut self, state: &State) -> io::Result<()> {
         self.update_dimensions()?;
 
@@ -123,7 +123,7 @@ where
     ///
     /// NOTE: this function itself does not flush to `self.ostream`
     ///       in order to only have to flush once per frame.
-    pub fn draw_board(&mut self) -> io::Result<()> {
+    pub fn draw_static_elements(&mut self) -> io::Result<()> {
         self.init_cursor_offset()?;
         queue!(self.ostream, SetForegroundColor(Color::Reset))?;
         queue!(self.ostream, SetBackgroundColor(Color::Reset))?;

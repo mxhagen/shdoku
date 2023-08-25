@@ -13,7 +13,7 @@ use std::{io, time::Duration};
 fn main() {
     let mut screen = Ui::init(io::stdout());
     let mut state = State::init(Difficulty::Mid);
-    screen.draw_board().or_crash();
+    screen.draw_static_elements().or_crash();
 
     loop {
         if poll(Duration::from_millis(250)).unwrap_or(false) {
