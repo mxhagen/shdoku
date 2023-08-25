@@ -72,7 +72,7 @@ The current control scheme adheres to vim-like keybindings and is modal.
           - [x] Autoremove marks after placing number in edit mode
         - [x] Go Mode to move to blocks 1-9
         - [x] Toggle Number/Mark with Space
-        - [ ] Undo/Redo stack
+        - [x] Undo/Redo stack
       - [x] Colored UI
         - [x] Hightlight preselected numbers
         - [x] Hightlight preselected markups
