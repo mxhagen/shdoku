@@ -11,6 +11,7 @@ trait New {
 }
 
 impl New for Board {
+    /// return an empty `Board`
     fn new() -> Self {
         [[0u8; 9]; 9]
     }

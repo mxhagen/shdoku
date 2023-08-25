@@ -16,7 +16,8 @@ use crossterm::{
     },
 };
 
-pub struct Screen<T>
+/// state of the user interface
+pub struct Ui<T>
 where
     T: io::Write,
 {
@@ -27,10 +28,15 @@ where
     pub height: usize,
 }
 
-impl<T> Screen<T>
+impl<T> Ui<T>
 where
     T: io::Write,
 {
+    /// returns a new `Ui` using `ostream` as its' output stream
+    /// and sets up terminal state:
+    /// - remembers the current cursor position
+    /// - enters alternate screen buffer
+    /// - enables raw mode
     pub fn init(ostream: T) -> Self {
         let (width, height) = size().unwrap();
         let (width, height) = (width as usize, height as usize);
@@ -38,7 +44,7 @@ where
         let presel_color_pair = (Color::Black, Color::Cyan);
         let markup_color_background = Color::Cyan;
 
-        let mut screen = Screen {
+        let mut ui = Ui {
             presel_color_pair,
             markup_color_background,
             ostream,
@@ -47,22 +53,29 @@ where
         };
 
         queue!(
-            screen.ostream,
+            ui.ostream,
             SavePosition,
             EnterAlternateScreen,
             Clear(All)
         )
         .expect("[-]: Error: ui::init: Failed to enter alternate screen.");
         enable_raw_mode().expect("[-]: Error: ui::init: Failed to enable raw mode.");
-        screen
+        ui
     }
 
+    /// resets terminal state that `Ui::init()` sets:
+    /// - disables raw mode
+    /// - leaves alternate screen buffer
+    /// - restores cursor position
     pub fn deinit(&mut self) -> io::Result<()> {
         disable_raw_mode()?;
         execute!(self.ostream, LeaveAlternateScreen, RestorePosition)?;
         Ok(())
     }
 
+    /// updates `width` and `height`.
+    /// clears the screen and redraws the board if the dimensions changed.
+    /// returns an error if the new dimensions are too small to fit the ui.
     pub fn update_dimensions(&mut self) -> io::Result<()> {
         let old_dimensions = (self.width, self.height);
 
@@ -90,6 +103,15 @@ where
         queue!(self.ostream, MoveToColumn(0))
     }
 
+    /// draws the entire ui, watching for possibly changed screen dimensions.
+    /// all other `draw_...()` functions just `queue!(...)` the actions to draw
+    /// their respective ui element.
+    /// this function chains all of these calls in order and then flushes the
+    /// changes to `self.ostream`.
+    ///
+    /// NOTE: this function does not draw the static elements of the ui
+    ///       using `Ui::draw_board()`. for efficiency these are only
+    ///       redrawn on screen dimensions changes.
     pub fn draw(&mut self, state: &State) -> io::Result<()> {
         self.update_dimensions()?;
 
@@ -100,6 +122,12 @@ where
         self.ostream.flush()
     }
 
+    /// `queue!(...)`s the drawing of the unchanging ui elements
+    /// such as the board and scoreboards outlines.
+    /// uses the lines provided by `board_template()`.
+    ///
+    /// NOTE: this function itself does not flush to `self.ostream`
+    ///       in order to only have to flush once per frame.
     pub fn draw_board(&mut self) -> io::Result<()> {
         self.init_cursor_offset()?;
         queue!(self.ostream, SetForegroundColor(Color::Reset))?;
@@ -114,6 +142,10 @@ where
         Ok(())
     }
 
+    /// `queue!(...)`s the drawing of the numbers in the cells.
+    ///
+    /// NOTE: this function itself does not flush to `self.ostream`
+    ///       in order to only have to flush once per frame.
     fn draw_numbers(&mut self, state: &State) -> io::Result<()> {
         self.init_cursor_offset()?;
         queue!(self.ostream, SetForegroundColor(Color::Reset))?;
@@ -174,6 +206,10 @@ where
         Ok(())
     }
 
+    /// `queue!(...)`s the drawing of variable scoreboard content
+    ///
+    /// NOTE: this function itself does not flush to `self.ostream`
+    ///       in order to only have to flush once per frame.
     fn draw_scoreboard(&mut self, state: &State) -> io::Result<()> {
         self.init_cursor_offset()?;
         queue!(self.ostream, SetForegroundColor(Color::Reset))?;
@@ -225,6 +261,10 @@ where
         Ok(())
     }
 
+    /// `queue!(...)`s the placement of the cursor on the selected cell.
+    ///
+    /// NOTE: this function itself does not flush to `self.ostream`
+    ///       in order to only have to flush once per frame.
     fn draw_cursor(&mut self, state: &State) -> io::Result<()> {
         let (row, col) = (state.cur_row, state.cur_col);
         let (x, y) = ((self.width / 2 - 14) as u16, (self.height / 2 - 6) as u16);
@@ -243,6 +283,12 @@ where
         queue!(self.ostream, MoveTo(x, y), SetCursorStyle::SteadyBlock)
     }
 
+    /// `queue!(...)`s the movement of the cursor by (`x`, `y`).
+    /// positive `x` values correspond to movement right by `x` columns.
+    /// positive `y` values correspond to movement down by `y` rows.
+    ///
+    /// NOTE: this function itself does not flush to `self.ostream`
+    ///       in order to only have to flush once per frame.
     fn move_cursor_by(&mut self, x: isize, y: isize) -> io::Result<()> {
         match x.cmp(&0) {
             Equal => Ok(()),
@@ -257,6 +303,10 @@ where
         Ok(())
     }
 
+    /// `queue!(...)`s the movement of the cursor to the top-left
+    /// of the inner ui.
+    /// this simplifies handling the padding in other drawing functions 
+    /// since the padding depends on the screen dimensions.
     fn init_cursor_offset(&mut self) -> io::Result<()> {
         let lft_pad = (self.width / 2 - 14) as u16;
         let top_pad = (self.height / 2 - 6) as u16;
@@ -264,6 +314,8 @@ where
     }
 }
 
+/// returns a template for the parts of the board that
+/// are always the same.
 fn board_template() -> [String; 13] {
     [
         String::from("┌────────┬────────┬────────┐    ┌───────┐"),
@@ -287,6 +339,10 @@ pub trait UiCrash {
 }
 
 impl<T> UiCrash for io::Result<T> {
+    /// ends the process with exit code 1
+    /// if called on `Err(_)` variant.
+    /// if called on `Ok(_)` variant, this is a no-op
+    /// that discards the contained value.
     fn or_crash(&self) {
         if self.is_err() {
             std::process::exit(1);

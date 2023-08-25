@@ -1,6 +1,3 @@
-// TODO: remove when done
-#![cfg_attr(debug_assertions, allow(unused))]
-
 use crate::generator::Difficulty::*;
 use crate::rand::{seq::SliceRandom, thread_rng};
 use crate::sudoku::{Board, New};
@@ -9,6 +6,7 @@ use std::fmt;
 
 /// categories of difficulty, indicating how many
 /// empty spaces will be on a sudoku board.
+/// (see `Difficulty::removal_count()` for values)
 #[allow(unused)]
 #[derive(Default, Copy, Clone, PartialEq)]
 pub enum Difficulty {
@@ -47,6 +45,8 @@ impl fmt::Display for Difficulty {
 }
 
 /// generate a random, unsolved sudoku board with a given `Difficulty`.
+/// solves a empty sudoku with random cell order and then removes
+/// some number of cells depending on the difficulty.
 pub fn generate_sudoku(difficulty: Difficulty) -> Board {
     let mut board = Board::new();
 
@@ -65,13 +65,15 @@ pub fn generate_sudoku(difficulty: Difficulty) -> Board {
     board
 }
 
+/// solves a sudoku, randomizing which empty cell of equal
+/// mrv to choose next.
+/// this is used to generate random, fully solvable sudokus.
+///
+/// NOTE: this does not guarantee a single-solution sudoku.
+///
 /// TODO: currently empty cells needs to be recreated
 ///       on each recursive call, and are randomized anew
 ///       each time, which is an unnecessary overhead.
-///
-/// solves a sudoku, randomizing which empty cell of equal
-/// mrv () to choose next.
-/// this is used to generate random, fully solvable sudokus.
 fn solve_random(board: &mut Board) -> Result<(), ()> {
     let mut empty_cells: Vec<(usize, usize)> = Vec::new();
 

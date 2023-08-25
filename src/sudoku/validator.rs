@@ -1,8 +1,6 @@
-// TODO: remove when done
-#![cfg_attr(debug_assertions, allow(unused))]
-
 use crate::sudoku::Board;
 
+/// returns true if the provided sudoku `Board` is in a solved state
 pub fn is_solution(sudoku: &Board) -> bool {
     for i in 0..9 {
         let mut row_set = 0u16;

@@ -4,13 +4,9 @@ use crossterm::event::{poll, read, Event::*, KeyCode::*};
 extern crate rand;
 
 mod state;
-use state::*;
-
 mod sudoku;
-use sudoku::*;
-
 mod ui;
-use ui::*;
+use {state::*, sudoku::*, ui::*};
 
 use std::{io, time::Duration};
 
@@ -80,6 +76,9 @@ fn main() {
                         }
                         _ => state.preselect_num(num as u8 - b'0'),
                     },
+
+                    Char('u') | Char('U') => state.undo(),
+                    Char('r') | Char('R') => state.redo(),
 
                     Char('q') | Char('Q') => {
                         screen.deinit().or_crash();
