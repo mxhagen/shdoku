@@ -4,7 +4,10 @@ use std::cmp::Ordering::*;
 use std::io;
 
 use crossterm::{
-    cursor::{MoveDown, MoveLeft, MoveRight, MoveTo, MoveToColumn, MoveUp, SetCursorStyle},
+    cursor::{
+        MoveDown, MoveLeft, MoveRight, MoveTo, MoveToColumn, MoveUp, RestorePosition, SavePosition,
+        SetCursorStyle,
+    },
     execute, queue,
     style::{Color, SetBackgroundColor, SetForegroundColor},
     terminal::{
@@ -43,15 +46,20 @@ where
             height,
         };
 
+        queue!(
+            screen.ostream,
+            SavePosition,
+            EnterAlternateScreen,
+            Clear(All)
+        )
+        .expect("[-]: Error: ui::init: Failed to enter alternate screen.");
         enable_raw_mode().expect("[-]: Error: ui::init: Failed to enable raw mode.");
-        queue!(screen.ostream, Clear(All), EnterAlternateScreen)
-            .expect("[-]: Error: ui::init: Failed to enter alternate screen.");
         screen
     }
 
     pub fn deinit(&mut self) -> io::Result<()> {
         disable_raw_mode()?;
-        execute!(self.ostream, Clear(All), LeaveAlternateScreen)?;
+        execute!(self.ostream, LeaveAlternateScreen, RestorePosition)?;
         Ok(())
     }
 
@@ -219,10 +227,7 @@ where
 
     fn draw_cursor(&mut self, state: &State) -> io::Result<()> {
         let (row, col) = (state.cur_row, state.cur_col);
-        let (x, y) = (
-            (self.width / 2 - 14) as u16,
-            (self.height / 2 - 6) as u16,
-        );
+        let (x, y) = ((self.width / 2 - 14) as u16, (self.height / 2 - 6) as u16);
         let (x, y) = (x + 2, y + 1);
         let (x, y) = (x + 2 * col as u16, y + row as u16);
         let x = match col {
