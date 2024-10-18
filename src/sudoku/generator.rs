@@ -32,6 +32,23 @@ impl Difficulty {
     }
 }
 
+impl std::str::FromStr for Difficulty {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "easy" => Ok(Difficulty::Easy),
+            "mid" => Ok(Difficulty::Mid),
+            "hard" => Ok(Difficulty::Hard),
+            "expert" => Ok(Difficulty::Expert),
+            _ => Err(()),
+        }
+        .or_else(|_| match s.parse::<usize>() {
+            Ok(x) if x <= 81 => Ok(Difficulty::Custom(x)),
+            _ => Err(format!("Unable to parse difficulty: '{s}'...\nIs it a valid difficulty or number between 0 and 81?"))
+        })
+    }
+}
+
 impl fmt::Display for Difficulty {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         match self {

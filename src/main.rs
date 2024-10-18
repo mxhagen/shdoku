@@ -3,6 +3,7 @@ use crossterm::event::{poll, read, Event::*, KeyCode::*};
 
 extern crate rand;
 
+mod cli;
 mod state;
 mod sudoku;
 mod ui;
@@ -11,8 +12,14 @@ use {state::*, sudoku::*, ui::*};
 use std::{io, time::Duration};
 
 fn main() {
+    let args = cli::new().get_matches();
+    let difficulty = match args.get_one::<String>("difficulty") {
+        None => Difficulty::Mid,
+        Some(d) => d.parse().unwrap(),
+    };
+
     let mut screen = Ui::init(io::stdout());
-    let mut state = State::init(Difficulty::Mid);
+    let mut state = State::init(difficulty);
     screen.draw_static_elements().or_crash();
 
     loop {
