@@ -19,8 +19,8 @@ pub struct State {
     pub difficulty: Difficulty,
     pub start_time: time::Instant,
 
-    pub undo_stack: Vec<UndoStep>,
-    pub redo_stack: Vec<UndoStep>,
+    pub undo_stack: Vec<DiffStep>,
+    pub redo_stack: Vec<DiffStep>,
 }
 
 impl State {
@@ -102,19 +102,33 @@ impl State {
             if *self.current_cell() == self.preselection {
                 self.delete_current_cell();
             } else {
+                let old_num = *self.current_cell();
                 *self.current_cell() = self.preselection;
-                self.delete_colliding_marks(self.preselection, self.cur_row, self.cur_col);
+
+                let affected =
+                    self.delete_colliding_marks(self.preselection, self.cur_row, self.cur_col);
+
+                self.push_to_undos_invalidating_redos(DiffStep::Edit(
+                    old_num,
+                    (self.cur_row, self.cur_col),
+                    affected,
+                    self.preselection,
+                ))
             }
         }
     }
 
     pub fn delete_current_cell(&mut self) {
         if self.current_cell_is_modifiable() {
-            *self.current_cell() = 0;
+            let cur = self.current_cell();
+            let old = *cur;
+            *cur = 0;
 
-            self.push_to_undo_stack(UndoStep::Replace(
-                self.preselection,
-                (self.cur_row as u8, self.cur_col as u8),
+            self.push_to_undos_invalidating_redos(DiffStep::Edit(
+                old,
+                (self.cur_row, self.cur_col),
+                vec![],
+                0,
             ));
         }
     }
@@ -122,25 +136,26 @@ impl State {
     /// deletes all marks of `num` in it's row, column and block.
     /// used to automatically remove marks when placing a number that
     /// invalidates those marks.
-    pub fn delete_colliding_marks(&mut self, num: u8, row: usize, col: usize) {
-        let mut deleted = [None; 27];
-        let mut pos = 0;
+    ///
+    /// returns a vector of the affected marks board positions
+    pub fn delete_colliding_marks(
+        &mut self,
+        num: u8,
+        row: usize,
+        col: usize,
+    ) -> Vec<(usize, usize)> {
+        let mut deleted = Vec::new();
 
         for i in 0..9 {
             if self.markups[i][col][num as usize - 1] {
-                deleted[pos] = Some((i as u8, col as u8));
-                pos += 1;
+                deleted.push((i, col));
             }
             if self.markups[row][i][num as usize - 1] {
-                deleted[pos] = Some((row as u8, i as u8));
-                pos += 1;
+                deleted.push((row, i));
             }
+            // TODO: avoid doubly including marks that are both in the same block AND row/col
             if self.markups[row / 3 * 3 + i / 3][col / 3 * 3 + i % 3][num as usize - 1] {
-                deleted[pos] = Some((
-                    row as u8 / 3 * 3 + i as u8 / 3,
-                    col as u8 / 3 * 3 + i as u8 % 3,
-                ));
-                pos += 1;
+                deleted.push((row / 3 * 3 + i / 3, col / 3 * 3 + i % 3));
             }
 
             self.markups[i][col][num as usize - 1] = false;
@@ -148,11 +163,7 @@ impl State {
             self.markups[row / 3 * 3 + i / 3][col / 3 * 3 + i % 3][num as usize - 1] = false;
         }
 
-        self.push_to_undo_stack(UndoStep::Unplace(
-            self.preselection,
-            (row as u8, col as u8),
-            deleted,
-        ));
+        deleted
     }
 
     pub fn toggle_current_mark(&mut self) {
@@ -168,11 +179,13 @@ impl State {
             return;
         }
 
+        let marked = self.markups[self.cur_row][self.cur_col][self.preselection as usize - 1];
         self.markups[self.cur_row][self.cur_col][self.preselection as usize - 1] = false;
 
-        self.push_to_undo_stack(UndoStep::Remark(
+        self.push_to_undos_invalidating_redos(DiffStep::Mark(
             self.preselection,
-            (self.cur_row as u8, self.cur_col as u8),
+            (self.cur_row, self.cur_col),
+            marked,
         ));
     }
 
@@ -181,11 +194,13 @@ impl State {
             return;
         }
 
+        let marked = self.markups[self.cur_row][self.cur_col][self.preselection as usize - 1];
         self.markups[self.cur_row][self.cur_col][self.preselection as usize - 1] = true;
 
-        self.push_to_undo_stack(UndoStep::Unmark(
+        self.push_to_undos_invalidating_redos(DiffStep::Mark(
             self.preselection,
-            (self.cur_row as u8, self.cur_col as u8),
+            (self.cur_row, self.cur_col),
+            marked,
         ));
     }
 
@@ -303,59 +318,54 @@ impl State {
 
     /// undo an action that has been taken
     pub fn undo(&mut self) {
-        use UndoStep::*;
-
-        if let Some(undo_step) = self.undo_stack.pop() {
-            self.redo_stack.push(undo_step);
-            match undo_step {
-                Unplace(num, (row, col), deleted_marks) => {
-                    self.board[row as usize][col as usize] = 0;
-                    for (r, c) in deleted_marks.iter().take_while(|x| x.is_some()).flatten() {
-                        self.markups[*r as usize][*c as usize][num as usize - 1] = true;
-                    }
-                }
-                Replace(num, (row, col)) => {
-                    self.board[row as usize][col as usize] = num;
-                }
-                Remark(num, (row, col)) => {
-                    self.markups[row as usize][col as usize][num as usize - 1] = true;
-                }
-                Unmark(num, (row, col)) => {
-                    self.markups[row as usize][col as usize][num as usize - 1] = false;
-                }
-            }
-        }
+        self.apply_diff(DiffType::Undo);
     }
 
     /// redo an action if one was taken and undone.
     pub fn redo(&mut self) {
-        use UndoStep::*;
+        self.apply_diff(DiffType::Redo);
+    }
 
-        if let Some(redo_step) = self.redo_stack.pop() {
-            self.undo_stack.push(redo_step);
-            match redo_step {
-                Unplace(num, (row, col), deleted_marks) => {
-                    self.board[row as usize][col as usize] = num;
-                    for (r, c) in deleted_marks.iter().take_while(|x| x.is_some()).flatten() {
-                        self.markups[*r as usize][*c as usize][num as usize - 1] = false;
+    /// apply a undo/redo step diff and get back the inverse step
+    pub fn apply_diff(&mut self, diff_type: DiffType) {
+        use DiffStep::*;
+        use DiffType::*;
+
+        let (used_stack, other_stack) = match diff_type {
+            Redo => (&mut self.redo_stack, &mut self.undo_stack),
+            Undo => (&mut self.undo_stack, &mut self.redo_stack),
+        };
+
+        if let Some(diff) = used_stack.pop() {
+            match diff {
+                Edit(original, (r, c), marks, replacement) => {
+                    self.board[r][c] = original;
+                    let affected_mark_num = match diff_type {
+                        Redo => original,
+                        Undo => replacement,
+                    };
+
+                    if affected_mark_num != 0 {
+                        marks.iter().for_each(|&(r, c)| {
+                            self.markups[r][c][affected_mark_num as usize - 1] =
+                                !self.markups[r][c][affected_mark_num as usize - 1]
+                        });
                     }
+
+                    other_stack.push(DiffStep::Edit(replacement, (r, c), marks, original));
                 }
-                Replace(_, (row, col)) => {
-                    self.board[row as usize][col as usize] = 0;
-                }
-                Remark(num, (row, col)) => {
-                    self.markups[row as usize][col as usize][num as usize - 1] = false;
-                }
-                Unmark(num, (row, col)) => {
-                    self.markups[row as usize][col as usize][num as usize - 1] = true;
+                Mark(num, (r, c), mark) => {
+                    let old_mark = self.markups[r][c][num as usize - 1];
+                    self.markups[r][c][num as usize - 1] = mark;
+                    other_stack.push(DiffStep::Mark(self.preselection, (r, c), old_mark));
                 }
             }
         }
     }
 
     /// pushes a move done by the player to the undo stack
-    /// this additionally invalidates the redo stack
-    pub fn push_to_undo_stack(&mut self, undo_step: UndoStep) {
+    /// additionally invalidating the redo stack
+    pub fn push_to_undos_invalidating_redos(&mut self, undo_step: DiffStep) {
         self.undo_stack.push(undo_step);
         self.redo_stack.clear();
     }
@@ -380,18 +390,17 @@ pub enum Mode {
     Go,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum UndoStep {
-    /// unplace num at (row, col) and re-mark
-    /// (row, col) if there were removed marks
-    Unplace(u8, (u8, u8), [Option<(u8, u8)>; 27]),
+#[derive(Debug, PartialEq, Clone)]
+pub enum DiffStep {
+    /// `Edit(num, position, affected_mark_positions, new_num)`
+    Edit(u8, (usize, usize), Vec<(usize, usize)>, u8),
 
-    /// re-place num at (row, col)
-    Replace(u8, (u8, u8)),
+    /// `Mark(num, position, mark)`
+    Mark(u8, (usize, usize), bool),
+}
 
-    /// unmark num at (row, col)
-    Unmark(u8, (u8, u8)),
-
-    /// re-mark num at (row, col)
-    Remark(u8, (u8, u8)),
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum DiffType {
+    Undo,
+    Redo,
 }
