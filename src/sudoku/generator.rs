@@ -91,7 +91,7 @@ pub fn generate_sudoku(difficulty: Difficulty) -> Board {
 /// TODO: currently empty cells needs to be recreated
 ///       on each recursive call, and are randomized anew
 ///       each time, which is an unnecessary overhead.
-fn solve_random(board: &mut Board) -> Result<(), ()> {
+pub fn solve_random(board: &mut Board) -> Result<(), ()> {
     let mut empty_cells: Vec<(usize, usize)> = Vec::new();
 
     let mut rows: Vec<usize> = (0..9).collect::<Vec<_>>();

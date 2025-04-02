@@ -1,4 +1,4 @@
-use crate::{generate_sudoku, Board, Difficulty};
+use crate::{generator::*, Board};
 
 #[test]
 fn generated_sudoku_uniqueness() {
@@ -29,4 +29,34 @@ fn generated_sudoku_uniqueness() {
         iterations,
         iterations - uniques.len()
     );
+}
+
+
+#[test]
+fn generated_sudoku_solvability_small() {
+    use Difficulty::*;
+
+    let iterations = 20;
+
+    for difficulty in [Easy, Mid, Hard, Expert] {
+        for _ in 0..iterations {
+            let mut sudoku = generate_sudoku(difficulty);
+            solve_random(&mut sudoku).expect("Generated sudoku not solvable");
+        }
+    }
+}
+
+#[test]
+#[ignore]
+fn generated_sudoku_solvability_large() {
+    use Difficulty::*;
+
+    let iterations = 400;
+
+    for difficulty in [Easy, Mid, Hard, Expert] {
+        for _ in 0..iterations {
+            let mut sudoku = generate_sudoku(difficulty);
+            solve_random(&mut sudoku).expect("Generated sudoku not solvable");
+        }
+    }
 }
